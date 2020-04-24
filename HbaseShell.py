@@ -9,6 +9,9 @@ Created on Jul 14, 2013
 
 import numbers
 import subprocess
+from status import HBaseDetailedStatus
+from tabledescribe import TableDescribe
+import logging
 
 STATUS_OPTIONS = ['simple', 'summary', 'detailed']
 
@@ -29,6 +32,7 @@ class HbaseShell(object):
 
     @staticmethod
     def exectueCmd(cmd):
+        logging.debug(cmd)
         p1 = subprocess.Popen(['echo', cmd], stdout=subprocess.PIPE)
         p2 = subprocess.Popen(['hbase', 'shell'], stdin=p1.stdout,
                               stdout=subprocess.PIPE)
@@ -39,6 +43,7 @@ class HbaseShell(object):
             output.append(line.strip())
             line = p2.stdout.readline()
         p2.stdout.close()
+        logging.debug('\n'.join(output))
         return output
 
     @staticmethod
@@ -71,7 +76,7 @@ class HbaseShell(object):
         args=None,
         ):
 
-        cmd = cmdName + "'" + table + "'"
+        cmd = cmdName + " '" + table + "'"
         columnsStr = \
             ', '.join([HbaseShell.argsDataToHbaseArgsString(cf)
                       for cf in columns])
@@ -93,7 +98,7 @@ class HbaseShell(object):
                                   + str(STATUS_OPTIONS))
             else:
                 cmd += " '" + st + "'"
-        return HbaseShell.exectueCmd(cmd)
+        return HBaseDetailedStatus.parseDetailedStatus(HbaseShell.exectueCmd(cmd))
 
     @staticmethod
     def version():
@@ -119,7 +124,7 @@ class HbaseShell(object):
         args - all the general parameters alter can get
         '''
 
-        return HbaseShell.ddlFuncParamtersToStr('create', table,
+        return HbaseShell.ddlFuncParamtersToStr('alter', table,
                 columns, args)
 
     @staticmethod
@@ -160,7 +165,7 @@ class HbaseShell(object):
     @staticmethod
     def describe(table):
         cmd = "describe '" + table + "'"
-        return HbaseShell.exectueCmd(cmd)
+        return TableDescribe(HbaseShell.exectueCmd(cmd))
 
     @staticmethod
     def disable(table):
@@ -215,7 +220,17 @@ class HbaseShell(object):
     @staticmethod
     def list():
         cmd = 'list'
-        return HbaseShell.exectueCmd(cmd)
+        lines = HbaseShell.exectueCmd(cmd)
+        result = []
+        if not lines:
+            return []
+        import json
+        for line in lines:
+            if line.startswith('=>'):
+                result = json.loads(line[3:])
+            elif line.startswith('["'):
+                result = json.loads(line)
+        return result
 
     @staticmethod
     def show_filters(table):
